@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">Smart home</string>
+    <string name="temp">Temp</string>
+    <string name="alarm">Alarm</string>
+    <string name="plomien">Czujnik plomieni</string>
+    <string name="pobierz">Pobierz info</string>
+    <string name="test">Test wysyłanie danych</string>
+    <string name="test1">Test pobieranie danych</string>
+    <string name="test2">Test wykres temp</string>
+    <string name="comment">Wprowadz id czujnika - > wyślij zapytanie, by odczytać info z czujnika</string>
+    <string name="title_activity_graph_view">graphView</string>
+</resources>
