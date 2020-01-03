@@ -9,4 +9,7 @@
     <string name="test2">Test wykres temp</string>
     <string name="comment">Wprowadz id czujnika - > wyślij zapytanie, by odczytać info z czujnika</string>
     <string name="title_activity_graph_view">graphView</string>
+    <string name="title_activity_settings">Settings</string>
+    <string name="info_connection">Ustaw adres IP serwera, który jest w twojej podsieci, by pobierać informacje o domie</string>
+    <string name="info_device">Ustaw numer telefonu, na który ma dzwonić aplikacja, gdy w domu coś się dzieje</string>
 </resources>
