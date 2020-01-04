@@ -6,9 +6,7 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.drm.DrmStore;
 import android.net.Uri;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import android.support.annotation.NonNull;
@@ -24,7 +22,6 @@ import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.Switch;
 import android.widget.Toast;
-import android.telephony.TelephonyManager;
 
 import com.androidnetworking.AndroidNetworking;
 import com.loopj.android.http.AsyncHttpClient;
@@ -37,19 +34,17 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.UnsupportedEncodingException;
-import java.net.URL;
 
 import cz.msebera.android.httpclient.Header;
 import cz.msebera.android.httpclient.conn.ConnectTimeoutException;
 import cz.msebera.android.httpclient.entity.StringEntity;
 
-import static android.content.Intent.ACTION_GET_CONTENT;
 import static android.content.Intent.FLAG_ACTIVITY_PREVIOUS_IS_TOP;
 import static com.example.pablito.first_one.R.id.editText;
 
 
 public class MainActivity extends AppCompatActivity {
-    //TODO change saving the switches state by using putExtra method
+    //TODO change saving the switches state to use putExtra method
     //TODO and maybe using runnable in onCreate method
     public static final String  EXTRA_MESSAGE = "com.example.myfirstapp.MESSAGE";
     public static String        URL;
@@ -58,11 +53,32 @@ public class MainActivity extends AppCompatActivity {
     public static double        temperature;
     private final int           REQUEST_READ_PHONE_STATE = 1;
     private final int           REQUEST_CALL_PHONE = 1;
-    private final Handler       handler = new Handler();
-    private Runnable            get_temp;
+    private Handler             handler;
+    private Handler             handler_call;
     private Intent              makeCall;
     private Switch              switchAlarm;
     private Switch              switchFire;
+    private SharedPreferences prefs;
+
+
+    private Runnable runnable_call = new Runnable() {
+        @Override
+        public void run() {
+            if (temperature > 21) {
+                ActivityCompat.requestPermissions( MainActivity.this, new String[]{Manifest.permission.CALL_PHONE}, REQUEST_CALL_PHONE );
+                makeCall = new Intent( Intent.ACTION_CALL, Uri.parse( "tel:" + PHONE_NUMBER ) );
+                startActivity( makeCall );
+            }
+            handler_call.postDelayed( runnable_call, 1000 );
+        }
+    };
+    private Runnable get_temp = new Runnable() {
+        @Override
+        public void run() {
+            temperature = graphView.getTempData();
+            handler.postDelayed(get_temp, 1000);
+        }
+    };
     // Used to load the 'native-lib' library on application startup.
     static {
         System.loadLibrary("native-lib");
@@ -80,19 +96,17 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         AndroidNetworking.initialize(getApplicationContext());
         setContentView(R.layout.activity_main);
-        alarmState = getSwitch();
+        prefs = getApplicationContext().getSharedPreferences( "Prefs", Context.MODE_PRIVATE);
+
         switchAlarm = findViewById( R.id.switch1 );
         switchFire = findViewById(R.id.switch2);
-        Intent intent = getIntent();
-        URL = intent.getStringExtra("URL");
-        PHONE_NUMBER = intent.getStringExtra( "PHONE_NUMBER" );
-
-
-        if(alarmState == "Is on")
-            switchAlarm.setChecked(true);
-        if(alarmState == "Is off"){
-            switchAlarm.setChecked( false );
-        }
+        URL = prefs.getString("URL", null);
+        PHONE_NUMBER = prefs.getString("PHONE_NUMBER", null);
+        alarmState = getSwitch();
+        handler = new Handler();
+        handler_call = new Handler();
+        get_temp.run();
+        runnable_call.run();
         Toast.makeText( this, alarmState, Toast.LENGTH_SHORT ).show();
         switchAlarm.setOnCheckedChangeListener( new CompoundButton.OnCheckedChangeListener() {
             @Override
@@ -119,43 +133,37 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onResume(){
         super.onResume();
-
-        get_temp = new Runnable() {
-            @Override
-            public void run() {
-                if(temperature > 21)
-                {
-                    try{
-                        ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.CALL_PHONE},REQUEST_CALL_PHONE);
-                        makeCall = new Intent(Intent.ACTION_CALL, Uri.parse("tel:" + PHONE_NUMBER));
-                        startActivity( makeCall );
-                    } catch(NullPointerException e){
-                        Toast.makeText(MainActivity.this, "No phone number has been provided, please enter Settings once again. ", Toast.LENGTH_LONG);
-                    } catch(Exception e) {
-                        Toast.makeText(MainActivity.this, "Something strange happened. Error Message: " + e.getMessage(), Toast.LENGTH_LONG);
-                    }
-                    handler.removeCallbacksAndMessages( this );
-                } else{
-                    handler.postDelayed( this, 1000 );
-                    temperature = graphView.getTempData();
-                }
-            }
-
-        };
-        handler.postDelayed( get_temp, 1000 );
+        URL = prefs.getString("URL", null);
+        PHONE_NUMBER = prefs.getString("PHONE_NUMBER", null);
+        Toast.makeText( this, URL, Toast.LENGTH_LONG ).show();
+        Toast.makeText( this, PHONE_NUMBER, Toast.LENGTH_LONG ).show();
+        runnable_call.run();
     }
 
     @Override
     public void onPause(){
         super.onPause();
-        if(alarmState == "Is off") switchAlarm.setChecked( false );
-        if(alarmState == "Is on") switchAlarm.setChecked( true );
+        handler_call.removeCallbacks( runnable_call );
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        handler_call.removeCallbacks( runnable_call );
+        handler.removeCallbacks( get_temp );
     }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         MenuInflater inflater = getMenuInflater();
         inflater.inflate( R.menu.settings_menu, menu );
+        if(prefs.contains( "URL" ) && prefs.contains( "PHONE_NUMBER" ))
+        {
+            URL = prefs.getString("URL", null);
+            PHONE_NUMBER = prefs.getString("PHONE_NUMBER", null);
+        } else {
+            menu.performIdentifierAction( R.id.item1, 0 );
+        }
         return true;
     }
 
@@ -166,6 +174,8 @@ public class MainActivity extends AppCompatActivity {
                 if ((grantResults.length > 0) && (grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
                     //TODO on request permissions handler
                     Toast.makeText( this, "Permission Granted" , Toast.LENGTH_SHORT).show();
+//                    final Intent settingsWindow = new Intent( MainActivity.this, Settings.class );
+//                    startActivity( settingsWindow );
                 }
                 else
                 {
@@ -193,6 +203,7 @@ public class MainActivity extends AppCompatActivity {
                                 .setPositiveButton("ok", new DialogInterface.OnClickListener(){
                                     @Override
                                     public void onClick(DialogInterface dialog, int which) {
+
                                         ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.READ_PHONE_STATE},REQUEST_READ_PHONE_STATE);
                                         ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.CALL_PHONE},REQUEST_CALL_PHONE);
                                     }
@@ -211,8 +222,9 @@ public class MainActivity extends AppCompatActivity {
                         ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.CALL_PHONE},REQUEST_CALL_PHONE);
                     }
                 }else {
-                    final Intent intent = new Intent( this, Settings.class );
-                    startActivity( intent );
+                    final Intent settingsWindow = new Intent( this, Settings.class );
+                    this.finish();
+                    startActivity( settingsWindow );
                 }
                 return true;
         }
@@ -261,7 +273,7 @@ public class MainActivity extends AppCompatActivity {
         final String TAGG = "Se nie dzia, bo:";
         RequestParams params = new RequestParams();
         params.put("q", "android");
-        final RequestHandle requestHandle = client.get(URL, new JsonHttpResponseHandler() {
+        final RequestHandle requestHandle = client.get("http://" + URL + ":5000", new JsonHttpResponseHandler() {
 
             @Override
             public void onStart() {
@@ -335,7 +347,7 @@ public class MainActivity extends AppCompatActivity {
         AsyncHttpClient client = new AsyncHttpClient();
         final String TAG = "Poszło";
         final String TAGZ = "Nie poszło";
-        final RequestHandle requestHandle = client.post(MainActivity.this,URL+"/main/sensors", encja, "application/json", new JsonHttpResponseHandler() {
+        final RequestHandle requestHandle = client.post(MainActivity.this,"http://" + URL + ":5000"+"/main/sensors", encja, "application/json", new JsonHttpResponseHandler() {
 
             @Override
             public void onStart() {
@@ -371,7 +383,7 @@ public class MainActivity extends AppCompatActivity {
         final String TAGG = "Se nie dzia, bo:";
         RequestParams params = new RequestParams();
         params.put("q", "android");
-        final RequestHandle requestHandle = client.get(URL+"/main/sensors", new JsonHttpResponseHandler() {
+        final RequestHandle requestHandle = client.get("http://" + URL + ":5000"+"/main/sensors", new JsonHttpResponseHandler() {
 
             @Override
             public void onStart() {
@@ -452,7 +464,7 @@ public class MainActivity extends AppCompatActivity {
         final String TAG = "Poszło";
         final String TAGZ = "Nie poszło";
 
-        final RequestHandle requestHandle = client.post(MainActivity.this, URL+"/main/sensors", encja,"application/json", new JsonHttpResponseHandler() {
+        final RequestHandle requestHandle = client.post(MainActivity.this, "http://" + URL + ":5000"+"/main/sensors", encja,"application/json", new JsonHttpResponseHandler() {
 
             @Override
             public void onStart() {
@@ -514,7 +526,7 @@ public class MainActivity extends AppCompatActivity {
         final String TAGG = "Se nie dzia, bo:";
         RequestParams params = new RequestParams();
         params.put("q", "android");
-        final RequestHandle requestHandle = client.get(URL+"/main/sensors", new JsonHttpResponseHandler() {
+        final RequestHandle requestHandle = client.get("http://" + URL + ":5000"+"/main/sensors", new JsonHttpResponseHandler() {
 
             @Override
             public void onStart() {
@@ -596,7 +608,7 @@ public class MainActivity extends AppCompatActivity {
         final String TAG = "Poszło";
         final String TAGZ = "Nie poszło";
 
-        final RequestHandle requestHandle = client.post(MainActivity.this, URL+"/main/fire", encja,"application/json", new JsonHttpResponseHandler() {
+        final RequestHandle requestHandle = client.post(MainActivity.this, "http://" + URL + ":5000"+"/main/fire", encja,"application/json", new JsonHttpResponseHandler() {
 
             @Override
             public void onStart() {

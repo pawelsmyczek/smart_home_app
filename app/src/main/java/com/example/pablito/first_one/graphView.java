@@ -137,7 +137,7 @@ public class graphView extends AppCompatActivity {
     }
 
     public static double getTempData() {
-        String URL = MainActivity.URL + "/main/temp";
+        String URL = "http://" + MainActivity.URL + ":5000" + "/main/temp";
         final String TAGG = "taki o";
         JSONObject jsonParams = new JSONObject();
         try {
