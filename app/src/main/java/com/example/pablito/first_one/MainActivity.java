@@ -59,6 +59,7 @@ public class MainActivity extends AppCompatActivity {
     private Switch              switchAlarm;
     private Switch              switchFire;
     private SharedPreferences prefs;
+    private boolean callFlag = false;
 
 
     private Runnable runnable_call = new Runnable() {
@@ -67,6 +68,7 @@ public class MainActivity extends AppCompatActivity {
             if (temperature > 21) {
                 ActivityCompat.requestPermissions( MainActivity.this, new String[]{Manifest.permission.CALL_PHONE}, REQUEST_CALL_PHONE );
                 makeCall = new Intent( Intent.ACTION_CALL, Uri.parse( "tel:" + PHONE_NUMBER ) );
+                Log.i("TELEFON", "Zaczynam dzwonić");
                 startActivity( makeCall );
             }
             handler_call.postDelayed( runnable_call, 1000 );
@@ -137,7 +139,7 @@ public class MainActivity extends AppCompatActivity {
         PHONE_NUMBER = prefs.getString("PHONE_NUMBER", null);
         Toast.makeText( this, URL, Toast.LENGTH_LONG ).show();
         Toast.makeText( this, PHONE_NUMBER, Toast.LENGTH_LONG ).show();
-        runnable_call.run();
+        // runnable_call.run();
     }
 
     @Override
